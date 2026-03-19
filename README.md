@@ -1,93 +1,249 @@
-# AI Context Repurposing Agent
+# 🚀 AI Content Repurposing Agent
+### Convert Blogs & Podcasts into Short Video Scripts, Highlights & Social Media Content
 
-Turn any YouTube video, blog post, or audio file into blog articles, LinkedIn posts,
-Twitter threads, Instagram captions, and short video scripts — powered by OpenAI.
+![AI](https://img.shields.io/badge/AI-NLP-blue)
+![Python](https://img.shields.io/badge/Python-Backend-green)
+![React](https://img.shields.io/badge/React-Frontend-blue)
+![MongoDB](https://img.shields.io/badge/Database-MongoDB-green)
+![Status](https://img.shields.io/badge/Project-Academic-orange)
 
-## Folder Structure
+---
 
-```
-ai-context-agent/
-├── backend/
-│   ├── main.py                  # FastAPI app entry point
-│   ├── models.py                # Pydantic request/response models
-│   ├── requirements.txt
-│   ├── .env.example
-│   ├── routers/
-│   │   ├── ingest.py            # /ingest endpoint (YouTube, audio, blog)
-│   │   └── generate.py          # /generate endpoint (AI content generation)
-│   └── services/
-│       ├── youtube.py           # YouTube transcript extraction
-│       ├── audio.py             # Whisper audio transcription
-│       ├── preprocessor.py      # Text cleaning
-│       └── ai_generator.py      # OpenAI content generation
-└── frontend/
-    ├── index.html
-    ├── package.json
-    ├── vite.config.js
-    └── src/
-        ├── main.jsx
-        ├── App.jsx
-        ├── api.js               # Axios API calls
-        ├── index.css
-        └── components/
-            ├── InputForm.jsx    # YouTube / blog / audio input tabs
-            └── OutputTabs.jsx   # Tabbed output viewer with copy button
-```
+# 📌 Project Overview
 
-## Setup
+**AI Content Repurposing Agent** is an AI-powered system that automatically converts **long-form content (blogs & podcasts)** into **short-form content** such as:
 
-### 1. Backend
+- 🎬 Short video scripts  
+- 📱 Social media captions  
+- ✨ Key highlights & quotes  
 
-```bash
-cd ai-context-agent/backend
+The system uses **offline open-source AI models** to process content and generate reusable formats.
 
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+💡 **Goal:**  
+Create Once → Share Everywhere
 
-# Install dependencies
-pip install -r requirements.txt
+This project was developed as a **Mini Project at GLA University**.
 
-# Set your OpenAI API key
-cp .env.example .env
-# Edit .env and add your key: OPENAI_API_KEY=sk-...
+---
 
-# Run the server
-uvicorn main:app --reload --port 8000
-```
+# ❗ Problem Statement
 
-> Whisper requires ffmpeg. Install it via:
-> - macOS: `brew install ffmpeg`
-> - Ubuntu: `sudo apt install ffmpeg`
-> - Windows: https://ffmpeg.org/download.html
+Content creators, educators, and marketers frequently produce long-form content such as **blogs, podcasts, and lectures**.
 
-### 2. Frontend
+However, converting this content into **short-form social media content** requires **significant manual effort and time**.
 
-```bash
-cd ai-context-agent/frontend
+As a result:
 
-npm install
-npm run dev
-```
+- Valuable content is underutilized  
+- Creators struggle to maintain multi-platform presence  
 
-Open http://localhost:5173 in your browser.
+---
 
-## API Endpoints
+# 💡 Solution
 
-| Method | Path        | Description                              |
-|--------|-------------|------------------------------------------|
-| POST   | /ingest/    | Extract & clean text from any input type |
-| POST   | /generate/  | Generate all 5 content formats via AI    |
-| GET    | /health     | Health check                             |
+The **AI Content Repurposing Agent** automatically transforms:
 
-## Environment Variables
+Blogs / Podcasts  
+↓  
+AI Processing  
+↓  
+Short Video Scripts  
+Social Media Posts  
+Key Highlights  
 
-| Variable        | Description              |
-|-----------------|--------------------------|
-| OPENAI_API_KEY  | Your OpenAI API key      |
+This reduces manual effort and helps creators **maximize content reach across platforms**.
 
-## Adding New Output Formats
+---
 
-1. Add a new prompt to `PROMPTS` dict in `backend/services/ai_generator.py`
-2. Add the field to `GeneratedContent` in `backend/models.py`
-3. Add a new tab entry to the `TABS` array in `frontend/src/components/OutputTabs.jsx`
+# ✨ Key Features
+
+### 📝 Blog Processing
+- Accept blog text or URL
+- Extract important information
+- Generate summaries and highlights
+
+### 🎙 Podcast Processing
+- Upload podcast audio
+- Convert speech to text
+- Generate scripts and captions
+
+### 🤖 AI Content Generation
+
+The system generates:
+
+- 🎬 **Short Video Scripts (30–60 seconds)**
+- 📱 **Social Media Posts**
+- 💬 **Captions**
+- ⭐ **Key Highlights**
+
+### 🎨 Tone Selection
+
+Users can choose writing style:
+
+- Professional  
+- Educational  
+- Casual  
+
+---
+
+# 🏗 System Architecture
+Frontend (React)
+│
+▼
+Backend API (Python / Node.js)
+│
+▼
+AI Processing Layer
+├── Speech-to-Text (Whisper / Vosk)
+├── NLP Processing (NLTK / spaCy)
+└── Content Repurposing Engine
+│
+▼
+Database (MongoDB / Local Storage)
+
+
+---
+
+# ⚙️ Technical Workflow
+
+1️⃣ User uploads **Blog Text or Podcast Audio**
+
+2️⃣ If audio is uploaded:
+
+3️⃣ NLP Processing performs:
+
+- Text summarization  
+- Keyword extraction  
+- Topic detection  
+
+4️⃣ Content Repurposing Engine generates:
+
+- Short video scripts  
+- Social media captions  
+- Highlights  
+
+5️⃣ Results are displayed for **copy or download**
+
+---
+
+# 🧠 AI Technologies Used
+
+| Technology | Purpose |
+|--------|--------|
+| NLTK | Text processing |
+| spaCy | NLP analysis |
+| Scikit-learn | Text ranking |
+| TextRank | Summarization |
+| Whisper / Vosk | Speech-to-text |
+
+---
+
+# 💻 Tech Stack
+
+## Frontend
+- React.js  
+- HTML  
+- CSS  
+- JavaScript  
+
+## Backend
+- Python  
+- Node.js  
+- REST APIs  
+
+## AI & NLP
+- NLTK  
+- spaCy  
+- Scikit-learn  
+
+## Speech Processing
+- Whisper  
+- Vosk  
+
+## Database
+- MongoDB  
+or  
+- Local Storage  
+
+---
+
+# 📊 Example User Flow
+Upload Blog / Podcast
+│
+▼
+AI Processing
+│
+▼
+Generated Content
+├── Video Script
+├── Social Media Post
+└── Highlights
+│
+▼
+Copy / Download
+
+---
+
+# 👥 Team Members
+
+| Name | Role |
+|-----|------|
+| **Shailesh Gole** | Team Lead & Backend Developer |
+| **Saumya Singh** | Frontend Developer & NLP Support |
+| **Urvashi Agrawal** | Testing & Documentation |
+
+---
+
+# 📈 Success Metrics
+
+| Objective | KPI |
+|--------|--------|
+| Reduce manual effort | Output generated in < 2 minutes |
+| Improve usability | User rating ≥ 4/5 |
+| Content relevance | 80% usable outputs |
+
+---
+
+# 🔒 Security Measures
+
+- File upload validation
+- Secure environment variables
+- Protected user data
+- HTTPS communication
+
+---
+
+# ⚠️ Limitations
+
+- Works best with **clear English content**
+- AI output may need **minor editing**
+- Large audio files may increase processing time
+
+---
+
+# 🚀 Future Improvements
+
+- Automatic video generation
+- Multi-language support
+- Social media auto-posting
+- AI highlight video creation
+
+---
+
+# 📚 References
+
+- Whisper Speech Recognition
+- NLTK Documentation
+- spaCy NLP Library
+- TextRank Summarization Research
+
+---
+
+# 📜 License
+
+This project is developed for **academic purposes at GLA University**.
+
+---
+
+⭐ If you find this project useful, consider **starring the repository!**
+
