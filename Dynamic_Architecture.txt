@@ -1,0 +1,478 @@
+================================================================================
+     AI CONTENT REPURPOSER — DYNAMIC AGENTIC ARCHITECTURE (INDUSTRY GRADE)
+================================================================================
+
+Framework  : LangGraph (stateful multi-agent orchestration)
+LLM        : Mistral 7B via Ollama (local) / OpenAI GPT-4o (cloud option)
+Vector DB  : Pinecone (managed, production-grade)
+Embeddings : LLM-based (Mistral embed / OpenAI text-embedding-3-small)
+Memory     : LangChain + Pinecone (short + long term)
+Search     : Tavily Search API (real-time web search)
+Scraping   : Playwright (headless browser, handles JS-heavy pages)
+
+
+════════════════════════════════════════════════════════════════════════════════
+                    WHY DYNAMIC vs STATIC ARCHITECTURE
+════════════════════════════════════════════════════════════════════════════════
+
+  STATIC (old):
+    Input → fixed pipeline → fixed tools → output
+    Every input goes through the same 10 steps regardless of content type.
+    No decision making. No adaptation.
+
+  DYNAMIC (new):
+    Input → Router Agent decides → specialized agents activate →
+    tools selected dynamically → LLM orchestrates → output
+    Each input type gets a different processing path.
+    Agents think, decide, and adapt based on content.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                         COMPLETE DYNAMIC FLOW
+════════════════════════════════════════════════════════════════════════════════
+
+  USER INPUT
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  - Search topic (text query)                                            │
+  │  - Direct text paste                                                    │
+  │  - PDF / DOCX / TXT file upload                                         │
+  │  - YouTube video URL                                                    │
+  │  - Audio file (MP3, WAV, M4A)                                           │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 0 — INPUT ROUTER AGENT                                           │
+  │  Framework: LangGraph StateGraph node                                   │
+  │  LLM: Mistral (decides routing)                                         │
+  │                                                                         │
+  │  This agent classifies the input and routes to the correct extractor.   │
+  │                                                                         │
+  │  Decision logic:                                                        │
+  │    IF input is a search query  → Search & Scrape Agent                  │
+  │    IF input is a URL (YouTube) → YouTube Extraction Agent               │
+  │    IF input is audio file      → Audio Transcription Agent              │
+  │    IF input is PDF/DOCX/TXT    → Document Extraction Agent              │
+  │    IF input is plain text      → Direct to Perception Layer             │
+  │                                                                         │
+  │  Tools used:                                                            │
+  │    - LangGraph conditional_edges (routes between nodes)                 │
+  │    - LLM function calling (classifies input type)                       │
+  │                                                                         │
+  │  Output: {input_type, raw_content, metadata}                            │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+              ┌──────────────────┼──────────────────────┐
+              │                  │                       │
+              ▼                  ▼                       ▼
+  ┌───────────────────┐ ┌──────────────────┐ ┌──────────────────────────┐
+  │ SEARCH & SCRAPE   │ │ YOUTUBE AGENT    │ │ DOCUMENT AGENT           │
+  │ AGENT             │ │                  │ │                          │
+  │                   │ │ Tool: yt-dlp     │ │ Tool: PyMuPDF (PDF)      │
+  │ Tool 1: Tavily    │ │ (captions)       │ │ Tool: python-docx (DOCX) │
+  │ Search API        │ │                  │ │ Tool: plain text reader  │
+  │ → Gets top 2      │ │ Fallback:        │ │                          │
+  │   search results  │ │ faster-whisper   │ │ Agent decides:           │
+  │   for the topic   │ │ medium model     │ │ - Extract all text       │
+  │                   │ │ (CPU, offline)   │ │ - Preserve structure     │
+  │ Tool 2: Playwright│ │                  │ │ - Handle tables/lists    │
+  │ (headless browser)│ │ Agent decides:   │ │                          │
+  │ → Scrapes full    │ │ - Try captions   │ │ LLM role:                │
+  │   article text    │ │   first (fast)   │ │ Decides extraction       │
+  │   from both URLs  │ │ - Fall back to   │ │ strategy based on        │
+  │                   │ │   audio if 429   │ │ file type detected       │
+  │ LLM role:         │ │                  │ │                          │
+  │ Decides which     │ │ Output: full     │ │ Output: clean text       │
+  │ scraped content   │ │ transcript text  │ │ with structure preserved │
+  │ is more relevant  │ │                  │ │                          │
+  │ and merges them   │ └──────────────────┘ └──────────────────────────┘
+  │                   │
+  │ Output: merged    │
+  │ article text      │
+  └───────────────────┘
+              │                  │                       │
+              └──────────────────┼───────────────────────┘
+                                 │
+                                 ▼ Raw Text
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 1 — PERCEPTION AGENT                                             │
+  │  Framework: LangGraph node with tool-calling                            │
+  │  LLM: Mistral (reasoning + decision making)                             │
+  │                                                                         │
+  │  This is NOT a fixed pipeline. The agent DECIDES what processing        │
+  │  is needed based on the content it receives.                            │
+  │                                                                         │
+  │  Sub-Agent 1: PREPROCESSING DECISION AGENT                              │
+  │    LLM analyzes raw text and decides:                                   │
+  │    - Does it need HTML cleaning? (if scraped from web)                  │
+  │    - Does it need language detection? (multilingual content)            │
+  │    - Does it need OCR correction? (if from PDF with bad formatting)     │
+  │    - Does it need deduplication? (if scraped from multiple sources)     │
+  │    Tools: nlp/text_cleaner.py, langdetect, NLTK                         │
+  │                                                                         │
+  │  Sub-Agent 2: CONTEXT ANALYSIS AGENT                                    │
+  │    LLM reads the cleaned text and extracts:                             │
+  │    - Main topic and subtopics                                           │
+  │    - Content type (tutorial / news / opinion / story / research)        │
+  │    - Target audience (beginner / expert / general / professional)       │
+  │    - Sentiment (positive / negative / neutral)                          │
+  │    - Key entities (people, companies, products, locations)              │
+  │    - Language and writing style                                         │
+  │    Tools: Mistral LLM with structured output (JSON mode)                │
+  │                                                                         │
+  │  Sub-Agent 3: CHUNKING STRATEGY AGENT                                   │
+  │    LLM decides the best chunking strategy based on content type:        │
+  │    - Short content (<500 words)  → No chunking, process as whole        │
+  │    - Medium content (500-2000)   → Semantic chunking by paragraph       │
+  │    - Long content (2000+ words)  → Recursive character splitting        │
+  │    - Structured content (lists)  → Section-based chunking               │
+  │    Tool: LangChain RecursiveCharacterTextSplitter                       │
+  │    Parameters decided by agent: chunk_size, chunk_overlap, separators   │
+  │                                                                         │
+  │  Output: {                                                              │
+  │    cleaned_text, chunks[], content_type, topic, audience,               │
+  │    language, sentiment, entities, chunking_strategy_used                │
+  │  }                                                                      │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 2 — EMBEDDING AGENT                                              │
+  │  Framework: LangGraph node                                              │
+  │  Vector DB: Pinecone (managed, serverless)                              │
+  │                                                                         │
+  │  This agent decides the best embedding approach for the content.        │
+  │  NOT a fixed embedding model — agent selects based on use case.         │
+  │                                                                         │
+  │  Embedding Strategy Agent:                                              │
+  │    LLM decides which embedding model to use:                            │
+  │    - English content       → text-embedding-3-small (OpenAI, 1536 dim) │
+  │    - Multilingual content  → multilingual-e5-large (1024 dim)          │
+  │    - Code content          → code-search-ada-002                        │
+  │    - Short social content  → all-MiniLM-L6-v2 (384 dim, fast)          │
+  │                                                                         │
+  │  LLM-based embedding approach:                                          │
+  │    Instead of just encoding text, the agent creates enriched            │
+  │    embedding inputs:                                                    │
+  │    "Topic: AI Healthcare. Type: Tutorial. Audience: Professionals.      │
+  │     Content: [chunk text here]"                                         │
+  │    → Richer embeddings that capture context, not just words             │
+  │                                                                         │
+  │  Pinecone storage:                                                      │
+  │    Index: content-repurposer-index                                      │
+  │    Namespace: per user session                                          │
+  │    Metadata stored: {result_id, topic, content_type, tone,              │
+  │                       audience, language, created_at, preview}          │
+  │    Dimension: 1536 (OpenAI) or 384 (MiniLM)                            │
+  │    Metric: cosine similarity                                            │
+  │                                                                         │
+  │  Output: vectors stored in Pinecone + vector_ids[]                      │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 3 — RETRIEVAL AGENT                                              │
+  │  Framework: LangGraph node with tool-calling                            │
+  │  Tools: Pinecone vector search + BM25 keyword search (hybrid)           │
+  │                                                                         │
+  │  This agent performs HYBRID RETRIEVAL — combines vector search          │
+  │  with keyword search for better results.                                │
+  │                                                                         │
+  │  Step 1: Vector Search (semantic)                                       │
+  │    Tool: Pinecone query API                                             │
+  │    → Finds semantically similar past content                            │
+  │    → top_k = 5, filter by content_type if available                    │
+  │                                                                         │
+  │  Step 2: Keyword Search (lexical)                                       │
+  │    Tool: BM25 index (sparse vectors in Pinecone)                        │
+  │    → Finds exact keyword matches in past content                        │
+  │    → Catches cases where semantic search misses specific terms          │
+  │                                                                         │
+  │  Step 3: Reranking Agent                                                │
+  │    LLM reranks the combined results:                                    │
+  │    - Scores each retrieved document for relevance (1-10)               │
+  │    - Filters out low-relevance results (score < 6)                      │
+  │    - Returns top 3 most relevant past results                           │
+  │    Tool: Mistral LLM with structured scoring output                     │
+  │                                                                         │
+  │  Step 4: Context Injection                                              │
+  │    Retrieved content is injected into the Orchestrator's context:       │
+  │    "Similar past content found: [preview]. Tone used: professional.     │
+  │     Keywords: AI, healthcare, diagnosis. Use this as reference."        │
+  │                                                                         │
+  │  Output: {similar_docs[], relevance_scores[], context_for_llm}         │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 4 — MEMORY LAYER                                                 │
+  │  Framework: LangChain + Pinecone                                        │
+  │                                                                         │
+  │  SHORT-TERM MEMORY (session):                                           │
+  │    Tool: LangChain ConversationBufferWindowMemory                       │
+  │    Window: last 10 interactions                                         │
+  │    Stores: what was processed, what tone was used, user preferences     │
+  │    Lives in RAM, cleared on restart                                     │
+  │                                                                         │
+  │  LONG-TERM MEMORY (persistent):                                         │
+  │    Tool: Pinecone vector store (same index, different namespace)        │
+  │    Namespace: "memory" (separate from content namespace)                │
+  │    Stores: user preferences, frequently used tones, past topics         │
+  │    Persists across sessions                                             │
+  │                                                                         │
+  │  Memory Agent:                                                          │
+  │    LLM decides what to remember from each session:                      │
+  │    - "User prefers casual tone for YouTube content"                     │
+  │    - "User frequently processes AI/tech content"                        │
+  │    - "User always wants Hindi language for Indian content"              │
+  │    These preferences are stored and retrieved in future sessions        │
+  │                                                                         │
+  │  Output: {session_history, user_preferences, relevant_past_context}    │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 5 — LLM ORCHESTRATOR (BRAIN)                                     │
+  │  Framework: LangGraph StateGraph (central coordinator)                  │
+  │  LLM: Mistral 7B (local) or GPT-4o (cloud)                             │
+  │                                                                         │
+  │  This is the CENTRAL BRAIN of the system. It receives all context       │
+  │  from previous layers and decides what to generate and how.             │
+  │                                                                         │
+  │  Orchestrator receives:                                                 │
+  │    - Cleaned text + chunks (from Perception)                            │
+  │    - Content analysis (topic, type, audience, language)                 │
+  │    - Retrieved similar past content (from Retrieval)                    │
+  │    - Session history + user preferences (from Memory)                   │
+  │    - Requested tone                                                     │
+  │                                                                         │
+  │  Orchestrator THINKS and DECIDES:                                       │
+  │    "This is a 1200-word educational YouTube transcript about AI         │
+  │     healthcare. The user prefers professional tone. Similar past        │
+  │     content was about AI in business. I will:                           │
+  │     1. Generate a detailed 6-sentence summary covering all topics       │
+  │     2. Extract 5 highlights focusing on healthcare applications         │
+  │     3. Create an educational script with medical examples               │
+  │     4. Generate LinkedIn post targeting healthcare professionals        │
+  │     5. Create Twitter thread breaking down AI diagnosis steps"          │
+  │                                                                         │
+  │  Then dispatches to specialized generation agents:                      │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 1 — SUMMARIZATION                              │   │
+  │  │ LLM: Mistral with chain-of-thought prompting                    │   │
+  │  │ Approach: Abstractive (generates new sentences, not extracts)   │   │
+  │  │ Fallback: TF-IDF extractive (scikit-learn)                      │   │
+  │  │ Output: flowing paragraph summary (tone-aware)                  │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 2 — HIGHLIGHTS                                 │   │
+  │  │ LLM: Mistral with structured output (JSON list)                 │   │
+  │  │ Approach: LLM selects most impactful sentences                  │   │
+  │  │ Fallback: TF-IDF + sentence length scoring                      │   │
+  │  │ Output: 5 highlight sentences                                   │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 3 — VIDEO SCRIPT                               │   │
+  │  │ LLM: Mistral with role prompt ("You are a video scriptwriter")  │   │
+  │  │ Approach: Structured generation [HOOK][MAIN][EXAMPLE][CTA]      │   │
+  │  │ Fallback: Template-based                                        │   │
+  │  │ Output: 30-60 sec script                                        │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 4 — SOCIAL POSTS                               │   │
+  │  │ LLM: Mistral with platform-specific prompts                     │   │
+  │  │ Approach: 3 separate LLM calls (Twitter, Instagram, LinkedIn)   │   │
+  │  │ Each call knows platform constraints and best practices          │   │
+  │  │ Fallback: Template-based                                        │   │
+  │  │ Output: {twitter, instagram, linkedin}                          │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 5 — TITLES                                     │   │
+  │  │ LLM: Mistral with SEO-aware prompting                           │   │
+  │  │ Approach: Generates 10 titles across 5 formats                  │   │
+  │  │ Fallback: Template categories                                   │   │
+  │  │ Output: 10 SEO-optimized titles                                 │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 6 — TWITTER THREAD                             │   │
+  │  │ LLM: Mistral with thread-writing prompt                         │   │
+  │  │ Approach: Generates 5-8 connected tweets with narrative flow    │   │
+  │  │ Fallback: Sentence chunking at 270 chars                        │   │
+  │  │ Output: numbered tweet array                                    │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 7 — LINKEDIN LONG-FORM                         │   │
+  │  │ LLM: Mistral with LinkedIn best-practices prompt                │   │
+  │  │ Approach: Hook → Insight → Bullets → CTA → Hashtags             │   │
+  │  │ Fallback: Template                                              │   │
+  │  │ Output: LinkedIn post                                           │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  ┌─────────────────────────────────────────────────────────────────┐   │
+  │  │ GENERATION AGENT 8 — KEYWORDS + HASHTAGS                        │   │
+  │  │ Keywords: TF-IDF (scikit-learn, ngram 1-2)                      │   │
+  │  │ Hashtags: keyword → CamelCase + platform-specific counts        │   │
+  │  │ Output: keywords[], hashtags[]                                  │   │
+  │  └─────────────────────────────────────────────────────────────────┘   │
+  │                                                                         │
+  │  Output: all_generated_content dict                                     │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 6 — REFLECTION + QUALITY AGENT                                   │
+  │  Framework: LangGraph node                                              │
+  │  LLM: Mistral                                                           │
+  │                                                                         │
+  │  This agent reviews ALL generated outputs and decides:                  │
+  │  1. Is the summary accurate and complete?                               │
+  │  2. Are the social posts platform-appropriate?                          │
+  │  3. Does the script match the requested tone?                           │
+  │  4. Are the titles SEO-optimized?                                       │
+  │                                                                         │
+  │  Quality Scoring Agent:                                                 │
+  │    Scores each output 1-10 on:                                          │
+  │    - Accuracy (does it reflect the original content?)                   │
+  │    - Tone consistency (matches requested tone?)                         │
+  │    - Platform fit (appropriate for the platform?)                       │
+  │    - Completeness (covers all key points?)                              │
+  │                                                                         │
+  │  Self-Improvement Loop (if score < 7):                                  │
+  │    Agent regenerates the low-scoring output with improved prompt        │
+  │    Max 2 retry attempts per output                                      │
+  │    This is what makes it truly DYNAMIC — it improves itself             │
+  │                                                                         │
+  │  Output: {all_outputs, quality_scores, improvement_notes}              │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 7 — MEMORY UPDATE + STORAGE                                      │
+  │                                                                         │
+  │  Step 1: Update Pinecone long-term memory                               │
+  │    → Store new content embedding with metadata                          │
+  │    → Update user preference vectors                                     │
+  │                                                                         │
+  │  Step 2: Update LangChain short-term memory                             │
+  │    → Add this session's interaction to buffer                           │
+  │                                                                         │
+  │  Step 3: Save to SQLite                                                 │
+  │    → All outputs + agent_trace + quality_scores                         │
+  │                                                                         │
+  │  Output: result_id                                                      │
+  └──────────────────────────────┬──────────────────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  LAYER 8 — OUTPUT FORMATTER + UI                                        │
+  │  Framework: Flask + Jinja2                                              │
+  │                                                                         │
+  │  Structured JSON response → 10-tab result page                          │
+  │  Agent Trace tab shows full reasoning chain                             │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+════════════════════════════════════════════════════════════════════════════════
+                    LANGGRAPH STATE GRAPH STRUCTURE
+════════════════════════════════════════════════════════════════════════════════
+
+  Nodes (each is an agent):
+    input_router       → classifies input type
+    search_scrape      → Tavily + Playwright
+    youtube_extract    → yt-dlp + Whisper
+    document_extract   → PyMuPDF + python-docx
+    perception         → preprocessing + context analysis + chunking
+    embedding          → embedding strategy + Pinecone upsert
+    retrieval          → hybrid search + reranking
+    memory_read        → fetch session + long-term memory
+    orchestrator       → central brain, dispatches to generators
+    summarize          → generation agent 1
+    highlights         → generation agent 2
+    script             → generation agent 3
+    social_posts       → generation agent 4
+    titles             → generation agent 5
+    thread             → generation agent 6
+    linkedin           → generation agent 7
+    keywords_hashtags  → generation agent 8
+    reflection         → quality scoring + self-improvement
+    memory_write       → update Pinecone + LangChain memory
+    storage            → SQLite save
+
+  Edges (conditional routing):
+    input_router → [search_scrape | youtube_extract | document_extract | perception]
+    perception → embedding → retrieval → memory_read → orchestrator
+    orchestrator → [all 8 generation agents in parallel]
+    all generators → reflection
+    reflection → [storage if score>=7 | regenerate if score<7]
+    storage → memory_write → END
+
+  State object passed between all nodes:
+    {
+      input_type, raw_text, cleaned_text, chunks[],
+      content_analysis{topic, type, audience, language},
+      embeddings[], retrieved_docs[], memory_context,
+      generated_outputs{}, quality_scores{},
+      agent_trace[], total_time
+    }
+
+
+════════════════════════════════════════════════════════════════════════════════
+                    TECHNOLOGY STACK (INDUSTRY GRADE)
+════════════════════════════════════════════════════════════════════════════════
+
+  Category              Technology                  Purpose
+  ─────────────────────────────────────────────────────────────────────────────
+  Agent Framework       LangGraph                   Stateful multi-agent graph
+  LLM (local)           Mistral 7B via Ollama        All reasoning + generation
+  LLM (cloud option)    GPT-4o via OpenAI API        Higher quality option
+  Embeddings (local)    all-MiniLM-L6-v2             Fast, offline embeddings
+  Embeddings (cloud)    text-embedding-3-small       High quality embeddings
+  Vector DB             Pinecone (serverless)        Long-term memory + retrieval
+  Hybrid Search         Pinecone sparse+dense        Vector + keyword search
+  Web Search            Tavily Search API            Real-time topic search
+  Web Scraping          Playwright (headless)        JS-heavy page scraping
+  Short-Term Memory     LangChain BufferWindowMemory Session context
+  Long-Term Memory      Pinecone (memory namespace)  User preferences + history
+  PDF Extraction        PyMuPDF (fitz)               PDF text extraction
+  DOCX Extraction       python-docx                  Word document extraction
+  YouTube               yt-dlp                       Caption extraction
+  Audio Transcription   faster-whisper medium        Speech to text (CPU)
+  Text Chunking         LangChain RecursiveTextSplit  Smart text chunking
+  Keyword Extraction    scikit-learn TF-IDF          Keyword + hashtag base
+  Web Framework         Flask 3.0                    API + UI server
+  Database              SQLite                       Result storage
+  Frontend              Jinja2 + Pure CSS + Vanilla JS  UI
+  ─────────────────────────────────────────────────────────────────────────────
+
+
+════════════════════════════════════════════════════════════════════════════════
+                    KEY DIFFERENCES FROM STATIC ARCHITECTURE
+════════════════════════════════════════════════════════════════════════════════
+
+  Feature              Static (old)              Dynamic (new)
+  ─────────────────────────────────────────────────────────────────────────────
+  Input handling       Fixed 4 input types       Agent decides routing
+  Preprocessing        Same for all inputs       Agent decides what's needed
+  Chunking             Fixed 500-word chunks     Agent picks best strategy
+  Embedding model      Fixed (MiniLM only)       Agent picks best model
+  Vector DB            FAISS (local file)        Pinecone (managed, scalable)
+  Retrieval            Vector search only        Hybrid (vector + keyword)
+  Reranking            None                      LLM reranks results
+  Generation           Sequential, all tools     Parallel, context-aware
+  Quality control      None                      Self-improvement loop
+  Memory               Session only              Session + persistent Pinecone
+  User preferences     Not tracked               Learned and stored
+  Search input         Not supported             Tavily + Playwright scraping
+  PDF/DOCX input        Not supported             PyMuPDF + python-docx
+  ─────────────────────────────────────────────────────────────────────────────
+
+================================================================================
+END OF DOCUMENT
+================================================================================

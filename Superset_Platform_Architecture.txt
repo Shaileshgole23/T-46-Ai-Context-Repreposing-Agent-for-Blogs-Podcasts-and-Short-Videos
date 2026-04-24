@@ -1,0 +1,563 @@
+================================================================================
+   AI CONTENT REPURPOSER — ARCHITECTURE USING SUPERSET PLATFORM COMPONENTS
+   Cognizant Technoverse Hackathon
+================================================================================
+
+Platform Components Available:
+  [INPUT]              → Entry point for data
+  [LLM STEP]           → Any LLM reasoning / generation call
+  [KNOWLEDGE RETRIEVAL]→ Vector DB / RAG retrieval
+  [CLASSIFIER/ROUTER]  → Routes flow based on input type
+  [CONDITION/BRANCH]   → If/else branching logic
+  [LOOP]               → Repeat a step multiple times
+  [HUMAN HANDOFF]      → Pause for human review
+  [OUTPUT FORMATTER]   → Structure final output as JSON/UI
+  [EVALUATOR/GUARDRAIL]→ Quality check / safety check
+  [RETRY/FALLBACK]     → Retry on failure or use fallback
+  [CUSTOM CODE]        → Python/JS custom logic
+  [PROMPT TEMPLATE]    → Reusable prompt with variables
+  [MERGE/JOIN]         → Combine outputs from parallel branches
+  [NOTE]               → Documentation annotation
+
+
+════════════════════════════════════════════════════════════════════════════════
+                    COMPLETE FLOW ON SUPERSET PLATFORM
+════════════════════════════════════════════════════════════════════════════════
+
+
+STEP 1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[INPUT]
+  Name    : User Input Node
+  Accepts : - Search query (text)
+            - Direct text / paste
+            - PDF / DOCX / TXT file
+            - YouTube URL
+            - Audio file (MP3/WAV)
+  Output  : {input_data, input_format}
+
+  [NOTE] : Entry point of the entire pipeline.
+           All input types funnel into this single node.
+
+
+STEP 2
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CLASSIFIER / ROUTER]
+  Name    : Input Type Classifier
+  Logic   : Detects what type of input was received
+  Routes to:
+    → "search"    if input is a text search query
+    → "youtube"   if input is a YouTube URL
+    → "audio"     if input is an audio file
+    → "document"  if input is PDF/DOCX/TXT
+    → "text"      if input is plain text
+
+  [NOTE] : Uses pattern matching + LLM to classify.
+           This is what makes the pipeline DYNAMIC —
+           different inputs take different paths.
+
+
+STEP 3A — Branch: SEARCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CUSTOM CODE]
+  Name    : Web Search + Scraper
+  Code    : Calls Tavily Search API → gets top 2 URLs
+            Calls Playwright → scrapes full article text from each URL
+  Output  : {url1_text, url2_text}
+
+[LLM STEP]
+  Name    : Content Merger LLM
+  Prompt  : "You have two scraped articles on the same topic.
+             Merge them into one coherent text removing duplicates.
+             Keep all unique information from both."
+  Output  : merged_text
+
+[RETRY / FALLBACK]
+  Name    : Search Fallback
+  Trigger : If Tavily API fails or scraping returns empty
+  Fallback: Ask user to paste text directly
+  Output  : raw_text
+
+
+STEP 3B — Branch: YOUTUBE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CUSTOM CODE]
+  Name    : YouTube Caption Extractor
+  Code    : yt-dlp downloads captions (json3 format)
+            Parses and cleans caption text
+  Output  : caption_text OR error
+
+[CONDITION / BRANCH]
+  Name    : Captions Available?
+  IF      : caption_text is not empty → go to STEP 4
+  ELSE    : go to Audio Transcription fallback below
+
+[CUSTOM CODE]  ← fallback branch
+  Name    : Audio Downloader + Transcriber
+  Code    : yt-dlp downloads audio (64kbps MP3)
+            FFmpeg converts to 16kHz WAV
+            faster-whisper medium model transcribes
+  Output  : transcript_text
+
+[RETRY / FALLBACK]
+  Name    : Transcription Fallback
+  Trigger : If Whisper fails or returns empty
+  Fallback: Return error message to user
+  Output  : raw_text
+
+
+STEP 3C — Branch: AUDIO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CUSTOM CODE]
+  Name    : Audio Transcriber
+  Code    : FFmpeg converts to 16kHz WAV
+            faster-whisper medium model transcribes
+            Language-specific initial_prompt for correct script
+  Output  : transcript_text
+
+[RETRY / FALLBACK]
+  Name    : Audio Fallback
+  Trigger : Transcription error or empty output
+  Fallback: Return error to user
+
+
+STEP 3D — Branch: DOCUMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CUSTOM CODE]
+  Name    : Document Text Extractor
+  Code    : PDF  → PyMuPDF (fitz) extracts text page by page
+            DOCX → python-docx extracts paragraphs
+            TXT  → direct file read
+  Output  : document_text
+
+[RETRY / FALLBACK]
+  Name    : Document Fallback
+  Trigger : Extraction fails (corrupted file, scanned PDF)
+  Fallback: Ask user to paste text manually
+
+
+STEP 4 — All branches merge here
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[MERGE / JOIN]
+  Name    : Raw Text Merger
+  Inputs  : Outputs from all 4 branches (3A, 3B, 3C, 3D, plain text)
+  Output  : raw_text (single unified text string)
+
+  [NOTE] : All input types converge here into one raw text.
+           From this point the pipeline is the same for all inputs.
+
+
+STEP 5 — PERCEPTION LAYER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CUSTOM CODE]
+  Name    : Text Cleaner
+  Code    : Remove HTML tags, URLs, extra whitespace (NLTK + regex)
+  Output  : cleaned_text
+
+[PROMPT TEMPLATE]
+  Name    : Context Analysis Prompt
+  Template: "Analyze this content and return JSON:
+             {
+               topic: main topic,
+               content_type: tutorial/news/opinion/story/research,
+               audience: beginner/expert/general/professional,
+               language: ISO code,
+               sentiment: positive/negative/neutral,
+               word_count: number,
+               key_entities: [list]
+             }
+             Content: {{cleaned_text}}"
+
+[LLM STEP]
+  Name    : Context Analysis LLM
+  Model   : Mistral 7B (Ollama)
+  Input   : Context Analysis Prompt
+  Output  : content_analysis JSON
+
+[CLASSIFIER / ROUTER]
+  Name    : Chunking Strategy Router
+  Logic   : Routes based on word_count from content_analysis
+  Routes to:
+    → "no_chunk"       if word_count < 500
+    → "paragraph"      if word_count 500-2000
+    → "recursive"      if word_count > 2000
+
+[CUSTOM CODE]
+  Name    : Text Chunker
+  Code    : LangChain RecursiveCharacterTextSplitter
+            Parameters set by routing decision above:
+              no_chunk   → chunk_size=99999 (whole text)
+              paragraph  → chunk_size=800, overlap=100
+              recursive  → chunk_size=500, overlap=50
+  Output  : chunks[]
+
+  [NOTE] : Chunking strategy is DYNAMIC — decided by content length.
+
+
+STEP 6 — EMBEDDING + VECTOR STORAGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CLASSIFIER / ROUTER]
+  Name    : Embedding Model Router
+  Logic   : Routes based on language from content_analysis
+  Routes to:
+    → "minilm"         if language = English
+    → "multilingual"   if language = Hindi/Arabic/Chinese/etc.
+
+[CUSTOM CODE]
+  Name    : Embedding Generator
+  Code    : Enriches each chunk before embedding:
+              "Topic: {topic}. Type: {content_type}. {chunk_text}"
+            Runs sentence-transformers on enriched text
+            Generates 384-dim float32 vectors
+  Output  : embeddings[]
+
+[CUSTOM CODE]
+  Name    : Pinecone Upsert
+  Code    : Stores vectors in Pinecone with metadata:
+              {result_id, topic, content_type, tone, language, preview}
+  Output  : vector_ids[]
+
+  [NOTE] : Pinecone is the long-term memory of the system.
+           Every processed content is stored here permanently.
+
+
+STEP 7 — KNOWLEDGE RETRIEVAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[KNOWLEDGE RETRIEVAL]
+  Name    : Pinecone Hybrid Search
+  Method  : Dense vector search (semantic) + Sparse BM25 (keyword)
+  Query   : Embed current content → search Pinecone
+  top_k   : 5 results
+  Output  : retrieved_docs[]
+
+[PROMPT TEMPLATE]
+  Name    : Reranking Prompt
+  Template: "Score each document 1-10 for relevance to this content:
+             Current topic: {{topic}}
+             Documents: {{retrieved_docs}}
+             Return JSON: [{doc_id, score, reason}]"
+
+[LLM STEP]
+  Name    : Reranking LLM
+  Model   : Mistral 7B
+  Input   : Reranking Prompt
+  Output  : ranked_docs[] (filtered to score >= 6)
+
+  [NOTE] : Hybrid search + LLM reranking gives much better
+           retrieval than pure vector search alone.
+
+
+STEP 8 — SHORT-TERM MEMORY READ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CUSTOM CODE]
+  Name    : Session Memory Reader
+  Code    : LangChain ConversationBufferWindowMemory
+            Reads last 10 interactions from current session
+  Output  : session_history string
+
+
+STEP 9 — LLM ORCHESTRATOR (PLANNING)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[PROMPT TEMPLATE]
+  Name    : Orchestrator Strategy Prompt
+  Template: "You are a content repurposing agent.
+             Content analysis: {{content_analysis}}
+             Similar past content: {{ranked_docs}}
+             Session history: {{session_history}}
+             Requested tone: {{tone}}
+
+             Write a 2-sentence strategy for repurposing this content.
+             What will you focus on and why?"
+
+[LLM STEP]
+  Name    : Strategy Planner LLM
+  Model   : Mistral 7B
+  Input   : Orchestrator Strategy Prompt
+  Output  : strategy_text
+
+  [NOTE] : This is the BRAIN. It reads all context and decides
+           the approach before any generation happens.
+
+
+STEP 10 — PARALLEL GENERATION (8 branches run simultaneously)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  [NOTE] : All 8 generation branches below run IN PARALLEL.
+           Each has its own Prompt Template + LLM Step + Retry/Fallback.
+
+  ── Branch A: SUMMARY ──────────────────────────────────────────────────────
+  [PROMPT TEMPLATE]
+    Name    : Summary Prompt
+    Template: "Summarize in 4-6 sentences. {{tone_instruction}}.
+               Write as one flowing paragraph. Cover ALL topics.
+               Content: {{cleaned_text}}"
+
+  [LLM STEP]
+    Name    : Summary Generator
+    Output  : summary_text
+
+  [RETRY / FALLBACK]
+    Trigger : Empty or too short response
+    Fallback: TF-IDF extractive summarization (scikit-learn)
+
+  ── Branch B: HIGHLIGHTS ───────────────────────────────────────────────────
+  [PROMPT TEMPLATE]
+    Name    : Highlights Prompt
+    Template: "Extract 5 key highlight sentences (10-25 words each).
+               Return as JSON array. Content: {{cleaned_text}}"
+
+  [LLM STEP]
+    Name    : Highlights Generator
+    Output  : highlights[]
+
+  [RETRY / FALLBACK]
+    Fallback: TF-IDF + sentence length scoring
+
+  ── Branch C: VIDEO SCRIPT ─────────────────────────────────────────────────
+  [PROMPT TEMPLATE]
+    Name    : Script Prompt
+    Template: "Write a 30-60 sec video script in {{tone}} tone.
+               Sections: [HOOK][MAIN POINT][EXAMPLE][CALL TO ACTION]
+               Based on: {{summary}}"
+
+  [LLM STEP]
+    Name    : Script Generator
+    Output  : script_text
+
+  [RETRY / FALLBACK]
+    Fallback: Structured template with tone-specific hooks
+
+  ── Branch D: SOCIAL POSTS ─────────────────────────────────────────────────
+  [PROMPT TEMPLATE]
+    Name    : Twitter Prompt / Instagram Prompt / LinkedIn Prompt
+    Template: Platform-specific prompt for each (3 separate templates)
+
+  [LLM STEP]
+    Name    : Social Posts Generator (3 parallel LLM calls)
+    Output  : {twitter, instagram, linkedin}
+
+  [RETRY / FALLBACK]
+    Fallback: Tone-aware template for each platform
+
+  ── Branch E: TITLES ───────────────────────────────────────────────────────
+  [PROMPT TEMPLATE]
+    Name    : Titles Prompt
+    Template: "Generate 10 SEO titles. Mix: listicle, how-to,
+               question, power statement, SEO format.
+               Topic: {{topic}}. Content: {{cleaned_text}}"
+
+  [LLM STEP]
+    Name    : Titles Generator
+    Output  : titles[]
+
+  [RETRY / FALLBACK]
+    Fallback: 5-category template system
+
+  ── Branch F: TWITTER THREAD ───────────────────────────────────────────────
+  [PROMPT TEMPLATE]
+    Name    : Thread Prompt
+    Template: "Write a 5-8 tweet thread in {{tone}} tone.
+               Tweet 1: Hook (start with THREAD:)
+               Tweets 2-N: One insight each, max 250 chars
+               Last tweet: CTA"
+
+  [LLM STEP]
+    Name    : Thread Generator
+    Output  : thread[]
+
+  [RETRY / FALLBACK]
+    Fallback: Sentence chunking at 270 chars
+
+  ── Branch G: LINKEDIN POST ────────────────────────────────────────────────
+  [PROMPT TEMPLATE]
+    Name    : LinkedIn Prompt
+    Template: "Write LinkedIn post in {{tone}} tone.
+               Structure: Hook → Insight → 3 bullets → Question → CTA
+               Under 700 chars. End with hashtags."
+
+  [LLM STEP]
+    Name    : LinkedIn Generator
+    Output  : linkedin_post
+
+  [RETRY / FALLBACK]
+    Fallback: Hook + bullets + CTA template
+
+  ── Branch H: KEYWORDS + HASHTAGS ──────────────────────────────────────────
+  [CUSTOM CODE]
+    Name    : Keyword + Hashtag Extractor
+    Code    : TF-IDF (scikit-learn, ngram 1-2) → top 10 keywords
+              Keywords → CamelCase hashtags
+              Platform-specific counts (Instagram:20, Twitter:5)
+    Output  : {keywords[], hashtags[]}
+
+    [NOTE] : No LLM needed here — TF-IDF is better for
+             keyword extraction than LLM.
+
+
+STEP 11 — MERGE ALL GENERATION OUTPUTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[MERGE / JOIN]
+  Name    : Generation Output Merger
+  Inputs  : All 8 branch outputs (A through H)
+  Output  : all_outputs {summary, highlights, script, social_posts,
+                          titles, thread, linkedin, keywords, hashtags}
+
+
+STEP 12 — EVALUATOR / GUARDRAIL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[EVALUATOR / GUARDRAIL]
+  Name    : Quality + Safety Evaluator
+  Checks  :
+    Quality:
+      - Summary covers all key topics? (score 1-10)
+      - Social posts match platform constraints?
+      - Script matches requested tone?
+      - Titles are SEO-optimized?
+    Safety:
+      - No harmful/offensive content
+      - No hallucinated facts (checks against original text)
+      - No PII (personal info) leaked
+
+[PROMPT TEMPLATE]
+  Name    : Evaluation Prompt
+  Template: "Score each output 1-10 for quality and flag any safety issues.
+             Original content: {{cleaned_text}}
+             Outputs: {{all_outputs}}
+             Return JSON: {scores: {}, safety_flags: [], overall_note: ''}"
+
+[LLM STEP]
+  Name    : Evaluator LLM
+  Output  : {scores{}, safety_flags[], overall_note}
+
+
+STEP 13 — CONDITION / BRANCH (Quality Gate)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CONDITION / BRANCH]
+  Name    : Quality Gate
+  IF      : any score < 7 AND retry_count < 2
+              → go to LOOP (regenerate low-scoring outputs)
+  ELSE IF : safety_flags not empty
+              → go to HUMAN HANDOFF
+  ELSE    : all scores >= 7 AND no safety issues
+              → go to STEP 14 (Memory Update)
+
+
+STEP 13A — LOOP (Self-Improvement)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[LOOP]
+  Name    : Regeneration Loop
+  Max     : 2 iterations
+  Logic   : For each output with score < 7:
+              - Identify what was wrong (from evaluator feedback)
+              - Regenerate ONLY that specific output with improved prompt
+              - Re-evaluate
+  Output  : improved_outputs{}
+
+  [NOTE] : This is the SELF-IMPROVEMENT loop.
+           The system fixes its own low-quality outputs automatically.
+           Max 2 retries to prevent infinite loops.
+
+
+STEP 13B — HUMAN HANDOFF (Safety Issues)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[HUMAN HANDOFF]
+  Name    : Safety Review
+  Trigger : safety_flags not empty
+  Action  : Pause pipeline, notify user of flagged content
+            User can approve, edit, or reject
+  Output  : human_approved_outputs{}
+
+  [NOTE] : Only triggered when safety guardrail detects issues.
+           Keeps humans in control for sensitive content.
+
+
+STEP 14 — MEMORY UPDATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CUSTOM CODE]
+  Name    : Long-Term Memory Writer
+  Code    : Store content embedding in Pinecone (content namespace)
+            Store user preference update in Pinecone (memory namespace)
+            Update LangChain session memory buffer
+  Output  : memory_updated = true
+
+
+STEP 15 — OUTPUT FORMATTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[OUTPUT FORMATTER]
+  Name    : Final Output Formatter
+  Format  : Structured JSON + SQLite storage
+  Output  : {
+              result_id,
+              summary, highlights, script,
+              social_posts {twitter, instagram, linkedin},
+              titles[], hashtags[], keywords[],
+              twitter_thread[], linkedin_post,
+              agent_trace {
+                strategy, content_analysis,
+                execution_log, quality_scores,
+                total_time
+              }
+            }
+  Saves to: SQLite database/content.db
+  Redirects to: /result/<id> (10-tab UI)
+
+
+════════════════════════════════════════════════════════════════════════════════
+                    COMPONENT USAGE SUMMARY
+════════════════════════════════════════════════════════════════════════════════
+
+  Platform Component      Used Where                              Count
+  ─────────────────────────────────────────────────────────────────────────────
+  [INPUT]                 Step 1 (user input)                     1
+  [LLM STEP]              Steps 3A,5,7,9,10(A-G),12              14
+  [KNOWLEDGE RETRIEVAL]   Step 7 (Pinecone hybrid search)         1
+  [CLASSIFIER/ROUTER]     Steps 2, 5 (input type + chunking)      3
+  [CONDITION/BRANCH]      Steps 3B, 13 (captions? quality gate)   2
+  [LOOP]                  Step 13A (self-improvement, max 2x)     1
+  [HUMAN HANDOFF]         Step 13B (safety flag review)           1
+  [OUTPUT FORMATTER]      Step 15 (final JSON + SQLite)           1
+  [EVALUATOR/GUARDRAIL]   Step 12 (quality + safety check)        1
+  [RETRY/FALLBACK]        Steps 3A,3B,3C,3D,10(A-G)              11
+  [CUSTOM CODE]           Steps 3A,3C,3D,5,6,8,14                7
+  [PROMPT TEMPLATE]       Steps 5,7,9,10(A-G),12                 13
+  [MERGE/JOIN]            Steps 4, 11                             2
+  [NOTE]                  Documentation throughout                8
+  ─────────────────────────────────────────────────────────────────────────────
+  TOTAL NODES                                                     66
+
+
+════════════════════════════════════════════════════════════════════════════════
+                    KEY DESIGN DECISIONS
+════════════════════════════════════════════════════════════════════════════════
+
+  1. CLASSIFIER/ROUTER at Step 2
+     → Makes the pipeline dynamic from the very start
+     → Different inputs take completely different paths
+
+  2. CONDITION/BRANCH at Step 3B
+     → YouTube tries captions first (fast), falls back to audio (slow)
+     → Saves processing time for most videos
+
+  3. LOOP at Step 13A
+     → Self-improvement: system fixes its own bad outputs
+     → Max 2 iterations prevents infinite loops
+
+  4. EVALUATOR/GUARDRAIL at Step 12
+     → Quality gate before any output reaches the user
+     → Safety check prevents harmful content
+
+  5. HUMAN HANDOFF at Step 13B
+     → Only triggered for safety issues
+     → Keeps humans in control without slowing normal flow
+
+  6. MERGE/JOIN at Steps 4 and 11
+     → Step 4: Unifies all input types into one text
+     → Step 11: Combines all 8 parallel generation outputs
+
+  7. RETRY/FALLBACK on every LLM step
+     → Every generation has a non-LLM fallback
+     → System never fails completely — always produces output
+
+================================================================================
+END OF DOCUMENT
+================================================================================
